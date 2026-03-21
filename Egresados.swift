@@ -270,3 +270,54 @@ let sorted = colParser.counts.sorted { a, b in
 for (value, count) in sorted {
     print("\(count)\t\(value)")
 }
+}
+
+// 1) Locate sheet r:id in xl/workbook.xml
+let workbookData = try readZipEntry("xl/workbook.xml")
+let sheetParser = WorkbookSheetParser(targetSheetName: targetSheetName)
+try parseXML(workbookData, parserDelegate: sheetParser)
+
+guard let rid = sheetParser.targetRid else {
+    throw XLSXError.sheetNotFound("No se encontró hoja: \(targetSheetName)")
+}
+
+// 2) Resolve rid -> Target in xl/_rels/workbook.xml.rels
+let relsData = try readZipEntry("xl/_rels/workbook.xml.rels")
+let relsParser = WorkbookRelsParser(targetRid: rid)
+try parseXML(relsData, parserDelegate: relsParser)
+
+guard let target = relsParser.target else {
+    throw XLSXError.relationshipNotFound(rid)
+}
+
+let worksheetPath = target.hasPrefix("xl/") ? target : "xl/" + target
+
+// 3) Load shared strings (needed for t="s")
+let sharedStrings: [String]
+if archive.contains(entry: "xl/sharedStrings.xml") {
+    let ssData = try readZipEntry("xl/sharedStrings.xml")
+    let ssParser = SharedStringsParser()
+    try parseXML(ssData, parserDelegate: ssParser)
+    sharedStrings = ssParser.shared
+} else {
+    sharedStrings = []
+}
+
+// 4) Parse worksheet and count column C
+let sheetData = try readZipEntry(worksheetPath)
+let colParser = ColumnCCountParser(
+    columnPrefix: columnPrefix,
+    sharedStrings: sharedStrings,
+    headerToExcludeUpper: headerToExclude.uppercased()
+)
+try parseXML(sheetData, parserDelegate: colParser)
+
+// 5) Print results sorted by count desc
+let sorted = colParser.counts.sorted { a, b in
+    if a.value != b.value { return a.value > b.value }
+    return a.key < b.key
+}
+
+for (value, count) in sorted {
+    print("\(count)\t\(value)")
+}
