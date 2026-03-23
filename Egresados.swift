@@ -1,4 +1,5 @@
 //Da la cantidad de los diferentes egresados de la generacion 2025
+//Licenciatura, propedeutico, preparatoria,maestria y doctorado 
 
 import Foundation
 import ZIPFoundation
